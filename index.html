@@ -3,6 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FANG – Film Appreciation Night Guild</title>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@500;700;900&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#1b0609;--bg2:#2a0a10;--velvet:#6b0f1e;--gold:#d9ae4e;--gold2:#8f6e26;--ink:#f3e8d2;--mute:#b9a587;--line:rgba(217,174,78,.28);color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -47,120 +48,139 @@ td,th{border-bottom:1px solid var(--line);padding:6px;text-align:left}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--gold);color:#2a0a10;padding:10px 22px;font-weight:700;z-index:9}
 .err{color:#ff9d8f;min-height:22px}
 .mute{color:var(--mute)}
-</style><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script></head>
+
+.tabs{display:flex;gap:6px}.tabs button{background:transparent;color:var(--mute);border:0;border-bottom:2px solid transparent;border-radius:0;padding:6px 14px;font-size:18px}
+.tabs button.on{color:var(--gold);border-bottom-color:var(--gold)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;z-index:20;padding:16px;overflow-y:auto}
+.modal .panel{margin:0;width:100%;max-width:520px;max-height:95vh;overflow-y:auto;border-color:var(--gold)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.emo{display:flex;gap:8px;margin:6px 0 4px}.emo button{flex:1;background:var(--bg);color:var(--ink);border:1px solid var(--line);padding:6px 0;font-size:26px;line-height:1.1}
+.emo button small{display:block;font-size:13px;color:var(--mute)}.emo button.on{border-color:var(--gold);background:var(--velvet)}
+.bar{display:grid;grid-template-columns:minmax(90px,200px) 1fr 44px;gap:10px;align-items:center;margin:6px 0;font-size:16px}
+.bar div{background:var(--bg2);height:14px;border:1px solid var(--line)}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold))}
+.bar b{color:var(--gold);text-align:right}
+</style></head>
 <body>
 <div class="curtain"></div>
-<header><div class="logo" onclick="go('')" tabindex="0">FANG<small>Now showing: your verdict</small></div><nav id="nav"></nav></header>
+<header><div class="logo" onclick="go('')" tabindex="0">FANG<small>Now showing: your verdict</small></div>
+<nav class="tabs" id="nav"><button data-t="" onclick="go('')">Movies</button><button data-t="my" onclick="go('my')">My Reviews</button><button data-t="admin" onclick="go('admin')">Admin</button></nav></header>
 <main id="app"></main>
 <script>
+/* ===== CONFIG: paste your Google Apps Script web app URL (ends with /exec) ===== */
+const API='https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnQKznug9nTuJ9uXQTzfX4P2zT-Se1kX1IH2hPBb8vddPhkOKK0YL1XeiubQ11FhGW-ttMvljEaMe0XrWpeY3GZQh9dFmDByx0cRCw4ywDDEV6udPZfXQWYatl-d08Zn8ZfARjwIDkKzwilFSltIHbOHxWNErL321QIyhKeV_0qNECy2ZwWLAC8F0aUql7sZ7RC4tasVhplL6NUU9mFS5OB0zAaSswB2OF_TeBVfaHl2HtuAVcjy9BUE-BbG6vWAjs0I7QMgFkcIh_kvTwl-EC6w9YoEAw&lib=MbCJWD_x4yVKBJfL73lIqbHN52YF567qd';
+/* ================================================================================ */
 const GEN=['Drama','Crime','Thriller','Romance','Sci-Fi','Comedy','War','Fantasy','Musical','Mystery'];
 const QUICK=['Masterpiece','Edge of my seat','Superb performances','Slow but worth it','Made me cry','Rewatch-worthy','Overrated','Not for me'];
-const DIST=['Durg','Raipur','Bilaspur','Korba','Rajnandgaon','Raigarh','Dhamtari','Mahasamund','Kanker','Bastar'];
-const S=[
-['The Godfather',1972,'Francis Ford Coppola','Crime,Drama',4.8,920,'A crime dynasty passes from father to reluctant son.'],
-['Casablanca',1942,'Michael Curtiz','Romance,Drama,War',4.6,640,'A cynical club owner must choose between love and duty.'],
-['12 Angry Men',1957,'Sidney Lumet','Drama,Mystery',4.6,410,'One juror stands against a hasty verdict.'],
-['Sunset Boulevard',1950,'Billy Wilder','Drama,Mystery',4.4,260,'A faded silent star pulls a writer into her fantasy.'],
-['Parasite',2019,'Bong Joon-ho','Thriller,Drama,Comedy',4.6,880,'Two families, one house, and a widening gap.'],
-['Schindler’s List',1993,'Steven Spielberg','Drama,War',4.7,700,'A businessman saves over a thousand lives.'],
-['Vertigo',1958,'Alfred Hitchcock','Mystery,Thriller,Romance',4.4,500,'An obsession spirals into a haunting deception.'],
-['Singin’ in the Rain',1952,'Gene Kelly','Musical,Comedy,Romance',4.4,330,'Hollywood scrambles as sound arrives.'],
-['Blade Runner',1982,'Ridley Scott','Sci-Fi,Thriller',4.3,610,'A hunter pursues rebel replicants in a neon dystopia.'],
-['The Shawshank Redemption',1994,'Frank Darabont','Drama,Crime',4.8,990,'Hope survives behind prison walls.'],
-['Amélie',2001,'Jean-Pierre Jeunet','Romance,Comedy',4.2,540,'A shy Parisian quietly rearranges strangers’ lives.'],
-['Seven Samurai',1954,'Akira Kurosawa','Drama,War',4.7,380,'Villagers hire ronin to defend their harvest.'],
-['Pulp Fiction',1994,'Quentin Tarantino','Crime,Comedy',4.5,870,'Intersecting LA stories told out of order.'],
-['Spirited Away',2001,'Hayao Miyazaki','Fantasy,Drama',4.6,760,'A girl must work in a bathhouse for spirits.'],
-['Dangal',2016,'Nitesh Tiwari','Drama',4.3,450,'A father trains his daughters to be wrestling champions.'],
-['Sholay',1975,'Ramesh Sippy','Drama,Comedy,Crime',4.5,520,'Two outlaws are hired to take down a dacoit.'],
-['Pather Panchali',1955,'Satyajit Ray','Drama',4.4,240,'A poor Bengali family and the little joys of childhood.'],
-['Inception',2010,'Christopher Nolan','Sci-Fi,Thriller',4.5,940,'A thief plants an idea inside a dream.'],
-['Mughal-E-Azam',1960,'K. Asif','Romance,Drama,Musical',4.4,300,'A prince defies an emperor for a court dancer.'],
-['Se7en',1995,'David Fincher','Crime,Thriller,Mystery',4.5,680,'Two detectives hunt a killer who follows the seven sins.'],
-['La La Land',2016,'Damien Chazelle','Musical,Romance,Drama',4.1,590,'A jazz pianist and an actress chase their dreams.'],
-['Gladiator',2000,'Ridley Scott','Drama,War',4.3,720,'A betrayed general returns as an arena fighter.'],
-['Rear Window',1954,'Alfred Hitchcock','Mystery,Thriller',4.5,420,'A housebound photographer suspects his neighbour.'],
-['3 Idiots',2009,'Rajkumar Hirani','Comedy,Drama',4.5,650,'Three friends challenge the pressure to conform.']
-];
-const KEY='fang_v1';let db=null;
-try{db=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-if(!db)db={users:[],reviews:[],session:null,next:100,movies:S.map((m,i)=>({id:i+1,t:m[0],y:m[1],d:m[2],g:m[3].split(','),r:m[4],c:m[5],b:m[6]}))};
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}};
+const EMO=['😡','😕','😐','🙂','😍'],WORD=['Awful','Meh','Okay','Good','Loved it'];
+const DIST=['Balod','Baloda Bazar','Balrampur','Bastar','Bemetara','Bijapur','Bilaspur','Dantewada','Dhamtari','Durg','Gariaband','Gaurela-Pendra-Marwahi','Janjgir-Champa','Jashpur','Kabirdham','Kanker','Khairagarh-Chhuikhadan-Gandai','Kondagaon','Korba','Koriya','Mahasamund','Manendragarh-Chirmiri-Bharatpur','Mohla-Manpur-Ambagarh Chowki','Mungeli','Narayanpur','Raigarh','Raipur','Rajnandgaon','Sakti','Sarangarh-Bilaigarh','Sukma','Surajpur','Surguja'];
 const $=s=>document.querySelector(s);
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const me=()=>db.users.find(u=>u.u===db.session);
-const isAdmin=()=>db.session==='admin';
-const mv=id=>db.movies.find(m=>m.id==id);
-let genre='All',q='',pick=0,quick='',authTab='in',toastT;
-function stat(m){const rs=db.reviews.filter(r=>r.m==m.id);const n=m.c+rs.length;const a=n?(m.r*m.c+rs.reduce((s,r)=>s+r.s,0))/n:0;return{n,a,pop:n*a}}
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
+const lset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let dev=ls('fang_dev',null);if(!dev){dev=Math.random().toString(36).slice(2)+Date.now().toString(36);lset('fang_dev',dev)}
+let D={movies:[],reviews:[],at:0},genre='All',q='',rate=0,qk='',toastT,adm=null,A=null;
+try{adm=JSON.parse(sessionStorage.getItem('fang_adm'))}catch(e){}
+const mv=id=>D.movies.find(m=>m.id==id);
 const stars=a=>'★'.repeat(Math.round(a))+'☆'.repeat(5-Math.round(a));
+const dfmt=t=>{const d=new Date(t);return isNaN(d)?'':d.toLocaleDateString()};
+async function call(action,body){
+ const get=action==='data';
+ const r=await fetch(get?API+'?action=data':API,get?{}:{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,...body})});
+ const j=await r.json();if(!j.ok)throw new Error(j.error||'Request failed');return j}
+async function load(force){if(!force&&D.at&&Date.now()-D.at<45000)return;
+ const j=await call('data');
+ D.movies=j.movies.map(x=>({id:+x.id,t:x.title,y:+x.year,d:x.director,g:String(x.genres).split(',').map(s=>s.trim()).filter(Boolean),b:x.blurb,r:+x.seedRating||0,c:+x.seedCount||0}));
+ D.reviews=j.reviews.map(x=>({id:x.id,m:+x.movieId,s:+x.stars,q:x.quick,t:x.comment,n:x.name,g:x.gender,d:x.district,ts:x.ts}));D.at=Date.now()}
+function stat(m){const rs=D.reviews.filter(r=>r.m==m.id);const n=m.c+rs.length;const a=n?(m.r*m.c+rs.reduce((s,r)=>s+r.s,0))/n:0;return{n,a,pop:n*a}}
 function poster(m,rank){const h=GEN.indexOf(m.g[0])*36+350;return `<div class="card" onclick="go('m-${m.id}')" tabindex="0" onkeydown="if(event.key==='Enter')go('m-${m.id}')"><div class="poster" style="background:linear-gradient(160deg,hsl(${h%360} 55% 22%),#1b0609 85%)">${rank?`<div class="rank">${rank}</div>`:''}<span>${esc(m.g.join(' / '))}</span><b>${esc(m.t)}</b></div><div class="meta">${m.y} · <span class="st">${stat(m).a.toFixed(1)}★</span></div></div>`}
-function toast(t){clearTimeout(toastT);document.querySelectorAll('.toast').forEach(e=>e.remove());const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);toastT=setTimeout(()=>d.remove(),2200)}
-function go(h){location.hash=h;route()}
-function nav(){const u=me();$('#nav').innerHTML=(isAdmin()?`<button class="ghost" onclick="go('admin')">Backstage</button>`:'')+(db.session?`<span class="mute">${isAdmin()?'Admin':esc(u?u.n:'')}</span><button class="ghost" onclick="out()">Sign out</button>`:`<button onclick="go('login')">Sign in</button>`)}
-function out(){db.session=null;save();go('')}
-function route(){const h=location.hash.slice(1);nav();pick=0;quick='';
-if(h==='login')return auth();if(h==='admin')return isAdmin()?admin():auth();
-if(h.startsWith('m-')&&mv(h.slice(2)))return movie(mv(h.slice(2)));home();scrollTo(0,0)}
-function forYou(){const u=me();if(!u)return null;const mine=db.reviews.filter(r=>r.u===u.u);const w={};mine.forEach(r=>{const m=mv(r.m);if(m)m.g.forEach(g=>w[g]=(w[g]||0)+(r.s-3))});
-const seen=new Set(mine.map(r=>r.m));
-const loc=db.reviews.filter(r=>{const x=db.users.find(k=>k.u===r.u);return x&&x.d.toLowerCase()===u.d.toLowerCase()&&r.u!==u.u&&r.s>=4});
-const list=db.movies.filter(m=>!seen.has(m.id)).map(m=>({m,s:m.g.reduce((a,g)=>a+(w[g]||0),0)+loc.filter(r=>r.m==m.id).length*.7+stat(m).a*.4}));
-return{list:list.sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.m),has:mine.length>0}}
-function home(){const top=[...db.movies].sort((a,b)=>stat(b).pop-stat(a).pop).slice(0,10);const f=forYou();
-$('#app').innerHTML=`<h1 style="font-size:40px;max-width:640px">Lights down. Take your seat and tell us what you saw.</h1>
+function toast(t){clearTimeout(toastT);document.querySelectorAll('.toast').forEach(e=>e.remove());const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);toastT=setTimeout(()=>d.remove(),2600)}
+function go(h){if(location.hash.slice(1)===h)route();else location.hash=h}
+function setup(msg){$('#app').innerHTML=`<div class="panel"><h2 style="margin-top:0">Setup needed</h2><p>${esc(msg)}</p><button onclick="location.reload()">Try again</button></div>`}
+async function route(){
+ if(API.startsWith('PASTE'))return setup('Paste your Google Apps Script web app URL at the top of index.html. See README.md.');
+ const h=location.hash.slice(1);
+ document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===(h.startsWith('m-')?'':h)));
+ if(!D.at)$('#app').innerHTML='<p class="mute">Opening the house…</p>';
+ try{await load(h==='')}catch(e){return setup('Cannot reach the sheet: '+e.message)}
+ if(h==='my')return mine();
+ if(h==='admin')return admin();
+ if(h.startsWith('m-')&&mv(h.slice(2))){movie(mv(h.slice(2)));return scrollTo(0,0)}
+ home();scrollTo(0,0)}
+const myList=()=>ls('fang_my',[]);
+function forYou(){const my=myList();const w={};my.forEach(r=>{const m=mv(r.m);if(m)m.g.forEach(g=>w[g]=(w[g]||0)+(r.s-3))});
+ const seen=new Set(my.map(r=>r.m));const dist=((ls('fang_me',{})).district||'').toLowerCase();
+ const loc=dist?D.reviews.filter(r=>r.s>=4&&(r.d||'').toLowerCase()===dist):[];
+ const list=D.movies.filter(m=>!seen.has(m.id)).map(m=>({m,s:m.g.reduce((a,g)=>a+(w[g]||0),0)+loc.filter(r=>r.m==m.id).length*.7+stat(m).a*.4}));
+ return{list:list.sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.m),has:my.length>0}}
+function home(){const top=[...D.movies].sort((a,b)=>stat(b).pop-stat(a).pop).slice(0,10);const f=forYou();
+$('#app').innerHTML=`<h1 style="font-size:40px;max-width:640px">Lights down. Pick a film and tell us how it felt, from 😡 to 😍.</h1>
 <h2>Top 10 tonight</h2><div class="row">${top.map((m,i)=>poster(m,i+1)).join('')}</div>
-${f?`<h2>Reserved for ${esc(me().n.split(' ')[0])}</h2>${f.has?'':'<p class="mute">Rate a few films and this list will learn your taste. Until then, here is a guess from your profile and district.</p>'}<div class="row">${f.list.map(m=>poster(m)).join('')}</div>`:`<h2>Reserved for you</h2><p class="mute"><a href="#login" style="color:var(--gold)">Sign in</a> to get a personal list that grows with every review.</p>`}
+<h2>Reserved for you</h2>${f.has?'':'<p class="mute">Review a film and this list will learn your taste. Until then, here is a guess from your district and what is popular.</p>'}<div class="row">${f.list.map(m=>poster(m)).join('')}</div>
 <h2>Browse by genre</h2><div class="chips">${['All',...GEN].map(g=>`<button class="chip ${g===genre?'on':''}" onclick="genre='${g}';home()">${g}</button>`).join('')}</div>
 <input id="q" placeholder="Search the full programme" value="${esc(q)}" oninput="q=this.value;grid()"><div class="grid" id="grid"></div>`;grid()}
-function grid(){const l=db.movies.filter(m=>(genre==='All'||m.g.includes(genre))&&m.t.toLowerCase().includes(q.toLowerCase()));$('#grid').innerHTML=l.length?l.map(m=>poster(m)).join(''):'<p class="mute">No films match. Try another genre or title.</p>'}
-function movie(m){const s=stat(m);const rs=db.reviews.filter(r=>r.m==m.id).reverse();const sim=db.movies.filter(x=>x.id!==m.id).map(x=>({x,k:x.g.filter(g=>m.g.includes(g)).length*10+stat(x).a})).filter(o=>o.k>=10).sort((a,b)=>b.k-a.k).slice(0,6).map(o=>o.x);const h=GEN.indexOf(m.g[0])*36+350;
+function grid(){const l=D.movies.filter(m=>(genre==='All'||m.g.includes(genre))&&m.t.toLowerCase().includes(q.toLowerCase()));$('#grid').innerHTML=l.length?l.map(m=>poster(m)).join(''):'<p class="mute">No films match. Try another genre or title.</p>'}
+function movie(m){const s=stat(m);const rs=D.reviews.filter(r=>r.m==m.id).reverse();const sim=D.movies.filter(x=>x.id!==m.id).map(x=>({x,k:x.g.filter(g=>m.g.includes(g)).length*10+stat(x).a})).filter(o=>o.k>=10).sort((a,b)=>b.k-a.k).slice(0,6).map(o=>o.x);const h=GEN.indexOf(m.g[0])*36+350;
 $('#app').innerHTML=`<p><a href="#" style="color:var(--gold)" onclick="go('');return false">← Back to the lobby</a></p>
 <div class="det"><div class="poster" style="background:linear-gradient(160deg,hsl(${h%360} 55% 22%),#1b0609 85%)"><span>${esc(m.g.join(' / '))}</span><b style="font-size:26px">${esc(m.t)}</b></div>
 <div><h1 style="font-size:42px">${esc(m.t)}</h1><p class="mute">${m.y} · Directed by ${esc(m.d)}</p><p>${esc(m.b)}</p>
 <p><span class="st" style="font-size:26px">${stars(s.a)}</span> <b>${s.a.toFixed(1)}</b> <span class="mute">from ${s.n} reviews</span></p>
-${db.session&&!isAdmin()?`<h3>Your verdict</h3><div class="pick" id="pk">${[1,2,3,4,5].map(i=>`<span data-i="${i}" onclick="setStar(${i})">★</span>`).join('')}</div>
-<div class="chips">${QUICK.map(t=>`<button class="chip" onclick="setQuick(this)">${t}</button>`).join('')}</div>
-<textarea id="rt" rows="2" placeholder="Add your own words (optional)"></textarea><button onclick="post(${m.id})">Post review</button>`:`<p class="mute">${isAdmin()?'Admins moderate from Backstage.':'<a href="#login" style="color:var(--gold)">Sign in</a> to post a review.'}</p>`}</div></div>
+<button onclick="openReview(${m.id})">Write a review</button></div></div>
 <h2>If you liked this</h2>${sim.length?`<div class="row">${sim.map(x=>poster(x)).join('')}</div>`:'<p class="mute">No similar films yet.</p>'}
-<h2>Audience reviews</h2>${rs.length?rs.map(r=>{const u=db.users.find(k=>k.u===r.u);return `<div class="rev"><span class="st">${stars(r.s)}</span> <b>${esc(u?u.n:r.u)}</b> <i>${u?`${u.g==='F'?'F':'M'} · ${esc(u.d)}`:''}</i><div>${esc(r.t)}</div></div>`}).join(''):'<p class="mute">No reviews yet. Be the first to take a bow.</p>'}`}
-function setStar(i){pick=i;document.querySelectorAll('#pk span').forEach(e=>e.classList.toggle('on',+e.dataset.i<=i))}
-function setQuick(b){document.querySelectorAll('.chip.on').forEach(c=>c.classList.remove('on'));b.classList.add('on');quick=b.textContent;}
-function post(id){if(!pick)return toast('Choose a star rating first');const t=($('#rt').value.trim()||quick||'').slice(0,400);if(!t)return toast('Pick a quick review or write a line');
-db.reviews=db.reviews.filter(r=>!(r.m==id&&r.u===db.session));db.reviews.push({m:id,u:db.session,s:pick,t});save();toast('Review posted');movie(mv(id))}
-function auth(){const j=authTab==='up';
-$('#app').innerHTML=`<div class="panel"><h2 style="margin-top:0">${j?'Join the guild':'Sign in'}</h2><div class="chips"><button class="chip ${j?'':'on'}" onclick="authTab='in';auth()">Sign in</button><button class="chip ${j?'on':''}" onclick="authTab='up';auth()">Create account</button></div>
-${j?`<label>Full name</label><input id="n" autocomplete="name"><label>Gender</label><select id="g"><option value="M">Male</option><option value="F">Female</option></select><label>District</label><input id="d" list="dl" placeholder="e.g. Durg"><datalist id="dl">${DIST.map(d=>`<option>${d}</option>`).join('')}</datalist>`:''}
-<label>Username</label><input id="u" autocomplete="username"><label>Password</label><input id="p" type="password" autocomplete="${j?'new-password':'current-password'}"><div class="err" id="er"></div>
-<button onclick="${j?'signup()':'login()'}">${j?'Create account':'Sign in'}</button></div>`}
-function login(){const u=$('#u').value.trim(),p=$('#p').value;
-if(u==='admin'&&p==='admin123'){db.session='admin';save();return go('admin')}
-const x=db.users.find(k=>k.u.toLowerCase()===u.toLowerCase()&&k.p===p);if(!x)return $('#er').textContent='Username or password is wrong.';db.session=x.u;save();go('')}
-function signup(){const n=$('#n').value.trim(),u=$('#u').value.trim(),p=$('#p').value,d=$('#d').value.trim(),g=$('#g').value;
-if(!n||!u||!d||p.length<4)return $('#er').textContent='Fill every field. Password needs 4+ characters.';
-if(u.toLowerCase()==='admin'||db.users.some(k=>k.u.toLowerCase()===u.toLowerCase()))return $('#er').textContent='That username is taken.';
-db.users.push({n,u,p,g,d});db.session=u;save();go('')}
-function admin(){const rv=[...db.reviews].reverse();
-$('#app').innerHTML=`<h1>Backstage</h1><h2>Add a film</h2><div class="panel" style="max-width:none;margin:0"><label>Title</label><input id="at"><label>Year</label><input id="ay" type="number"><label>Director</label><input id="ad"><label>Genres (comma separated: ${GEN.join(', ')})</label><input id="ag"><label>Synopsis</label><input id="ab"><div class="err" id="er"></div><button onclick="addMovie()">Add to programme</button></div>
-<h2>Films (${db.movies.length})</h2><div class="tablewrap"><table>${db.movies.map(m=>`<tr><td>${esc(m.t)} (${m.y})</td><td>${esc(m.g.join(', '))}</td><td><button class="ghost" onclick="delMovie(${m.id})">Remove</button></td></tr>`).join('')}</table></div>
-<h2>Reviews (${rv.length})</h2><p><button onclick="exportXlsx()">Download as Excel</button> <span class="mute">Includes reviews, members and films in one workbook.</span></p><div class="tablewrap"><table>${rv.map(r=>`<tr><td>${esc((mv(r.m)||{t:'?'}).t)}</td><td>${esc(r.u)}</td><td class="st">${'★'.repeat(r.s)}</td><td>${esc(r.t)}</td><td><button class="ghost" onclick="delRev('${esc(r.u)}',${r.m})">Delete</button></td></tr>`).join('')||'<tr><td class="mute">No reviews yet.</td></tr>'}</table></div>
-<h2>Members (${db.users.length})</h2><div class="tablewrap"><table>${db.users.map(u=>`<tr><td>${esc(u.n)}</td><td>${esc(u.u)}</td><td>${u.g}</td><td>${esc(u.d)}</td><td><button class="ghost" onclick="delUser('${esc(u.u)}')">Remove</button></td></tr>`).join('')||'<tr><td class="mute">No members yet.</td></tr>'}</table></div>`}
-async function exportXlsx(){if(typeof XLSX==='undefined')return toast('Excel library did not load');
-const dl=window.claude?await claude.use('downloads'):null;
-const U=k=>db.users.find(x=>x.u===k)||{};
-const R=db.reviews.map(r=>({Movie:(mv(r.m)||{}).t||'',Stars:r.s,Review:r.t,Username:r.u,Name:U(r.u).n||'',Gender:U(r.u).g||'',District:U(r.u).d||''}));
-const Us=db.users.map(u=>({Name:u.n,Username:u.u,Gender:u.g,District:u.d}));
-const M=db.movies.map(m=>({Title:m.t,Year:m.y,Director:m.d,Genres:m.g.join(', '),Rating:+stat(m).a.toFixed(2),Reviews:stat(m).n}));
-const wb=XLSX.utils.book_new();[['Reviews',R],['Members',Us],['Films',M]].forEach(([n,d])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d),n));
-const data=XLSX.write(wb,{type:'array',bookType:'xlsx'});
-const blob=new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-if(!dl){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='fang-reviews.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return}
-try{await dl.save({filename:'fang-reviews.xlsx',data:blob})}catch(e){if(e&&e.code!=='declined')toast('Could not save the file')}}
-function addMovie(){const t=$('#at').value.trim(),y=+$('#ay').value,d=$('#ad').value.trim(),b=$('#ab').value.trim();const g=$('#ag').value.split(',').map(x=>GEN.find(k=>k.toLowerCase()===x.trim().toLowerCase())).filter(Boolean);
-if(!t||!y||!g.length)return $('#er').textContent='Title, year and at least one valid genre are required.';
-db.movies.push({id:db.next++,t,y,d:d||'Unknown',g,r:0,c:0,b:b||'No synopsis yet.'});save();toast('Film added');admin()}
-function delMovie(id){if(!confirm('Remove this film and its reviews?'))return;db.movies=db.movies.filter(m=>m.id!==id);db.reviews=db.reviews.filter(r=>r.m!==id);save();admin()}
-function delRev(u,m){db.reviews=db.reviews.filter(r=>!(r.u===u&&r.m===m));save();admin()}
-function delUser(u){if(!confirm('Remove this member and their reviews?'))return;db.users=db.users.filter(k=>k.u!==u);db.reviews=db.reviews.filter(r=>r.u!==u);save();admin()}
+<h2>Audience reviews</h2>${rs.length?rs.map(r=>`<div class="rev"><span class="st">${stars(r.s)}</span> ${EMO[r.s-1]||''} <b>${esc(r.n)}</b> <i>${esc(r.g)} · ${esc(r.d)} · ${dfmt(r.ts)}</i><div>${esc(r.t||r.q)}</div></div>`).join(''):'<p class="mute">No reviews yet. Be the first to take a bow.</p>'}`}
+function openReview(id){const m=mv(id),me=ls('fang_me',{});rate=0;qk='';
+ const d=document.createElement('div');d.className='modal';d.id='md';d.onclick=e=>{if(e.target===d)closeM()};
+ d.innerHTML=`<div class="panel"><h2 style="margin-top:0">${esc(m.t)}</h2><p class="mute">Your details help us understand audiences across Chhattisgarh.</p>
+<label>Name</label><input id="rn" value="${esc(me.name||'')}" maxlength="60" autocomplete="name">
+<div class="two"><div><label>Gender</label><select id="rg"><option value="">Select</option><option ${me.gender==='Male'?'selected':''}>Male</option><option ${me.gender==='Female'?'selected':''}>Female</option></select></div>
+<div><label>Age</label><input id="ra" type="number" min="5" max="100" value="${esc(me.age||'')}"></div></div>
+<label>District</label><input id="rd" list="dl" value="${esc(me.district||'')}" placeholder="e.g. Durg"><datalist id="dl">${DIST.map(x=>`<option>${x}</option>`).join('')}</datalist>
+<label>Your rating</label><div class="emo" id="emo">${EMO.map((e,i)=>`<button onclick="setRate(${i+1})" aria-label="${i+1} stars">${e}<small>${i+1}★ ${WORD[i]}</small></button>`).join('')}</div>
+<label>Quick review</label><div class="chips">${QUICK.map(t=>`<button class="chip" onclick="setQk(this)">${t}</button>`).join('')}</div>
+<label>Comment (optional)</label><textarea id="rc" rows="2" maxlength="300"></textarea><div class="err" id="er"></div>
+<div style="display:flex;gap:10px;justify-content:flex-end"><button class="ghost" onclick="closeM()">Cancel</button><button id="sb" onclick="submitReview(${id})">Submit review</button></div></div>`;
+ document.body.appendChild(d);$('#rn').focus()}
+const closeM=()=>{const d=$('#md');if(d)d.remove()};
+function setRate(i){rate=i;document.querySelectorAll('#emo button').forEach((b,k)=>b.classList.toggle('on',k===i-1))}
+function setQk(b){const on=b.classList.contains('on');document.querySelectorAll('.modal .chip.on').forEach(c=>c.classList.remove('on'));qk=on?'':b.textContent;if(!on)b.classList.add('on')}
+async function submitReview(id){const v=k=>$('#'+k).value.trim(),e=t=>$('#er').textContent=t;
+ const p={name:v('rn'),gender:v('rg'),age:+v('ra'),district:v('rd')};
+ if(!p.name||!p.gender||!p.district)return e('Please fill in name, gender and district.');
+ if(!(p.age>=5&&p.age<=100))return e('Enter a valid age.');
+ if(!rate)return e('Choose a rating.');
+ const b=$('#sb');b.disabled=true;b.textContent='Submitting…';
+ try{await call('review',{device:dev,movieId:id,stars:rate,quick:qk,comment:v('rc'),...p})}catch(x){b.disabled=false;b.textContent='Submit review';return e(x.message)}
+ lset('fang_me',p);const my=myList().filter(r=>r.m!==id);my.push({m:id,s:rate,t:v('rc')||qk,ts:new Date().toISOString()});lset('fang_my',my);
+ closeM();toast('Review submitted');await load(true);if(location.hash.slice(1)==='m-'+id)movie(mv(id))}
+function mine(){const my=myList().slice().reverse();
+$('#app').innerHTML=`<h1>My Reviews</h1><p class="mute">Reviews you submitted from this device.</p>${my.length?my.map(r=>{const m=mv(r.m);return `<div class="rev"><b style="cursor:pointer;color:var(--gold)" onclick="go('m-${r.m}')">${esc(m?m.t:'Removed film')}</b> <span class="st">${stars(r.s)}</span> ${EMO[r.s-1]} <i>${dfmt(r.ts)}</i><div>${esc(r.t)}</div></div>`}).join(''):'<p class="mute">Nothing yet. Open a film and write your first review.</p>'}`}
+async function admin(){
+ if(!adm){$('#app').innerHTML=`<div class="panel"><h2 style="margin-top:0">Admin login</h2><p class="mute">Sign in to see the dashboard.</p><label>Username</label><input id="au" autocomplete="username"><label>Password</label><input id="ap" type="password" autocomplete="current-password"><div class="err" id="er"></div><button onclick="adminLogin()">Sign in</button></div>`;return}
+ $('#app').innerHTML='<p class="mute">Loading dashboard…</p>';
+ try{A=(await call('adminData',adm)).reviews}catch(e){adm=null;sessionStorage.removeItem('fang_adm');return admin()}
+ const real=D.movies.map(m=>{const rs=A.filter(r=>+r.movieId===m.id);return{l:m.t,v:rs.length?rs.reduce((s,r)=>s+ +r.stars,0)/rs.length:0,n:rs.length}}).filter(x=>x.n).sort((a,b)=>b.v-a.v).slice(0,10);
+ const dc={};A.forEach(r=>{const k=r.district||'Unknown';dc[k]=(dc[k]||0)+1});const dt=Object.entries(dc).sort((a,b)=>b[1]-a[1]).slice(0,8),mx=dt.length?dt[0][1]:1;
+ const bar=(l,v,p,t)=>`<div class="bar"><span>${esc(l)}</span><div><i style="width:${p}%"></i></div><b>${t}</b></div>`;
+ $('#app').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1>Admin Dashboard</h1><button class="ghost" onclick="adm=null;sessionStorage.removeItem('fang_adm');admin()">Sign out</button></div><p class="mute">Live data from Google Sheets. ${A.length} reviews.</p>
+<h2>Average rating by movie</h2>${real.length?real.map(x=>bar(x.l,x.v,x.v*20,x.v.toFixed(1))).join(''):'<p class="mute">No reviews yet.</p>'}
+<h2>Reviews by district (top 8)</h2>${dt.length?dt.map(([k,n])=>bar(k,n,n/mx*100,n)).join(''):'<p class="mute">No reviews yet.</p>'}
+<h2>All reviews</h2><p><button onclick="exportCsv()">Export CSV</button> <button class="ghost" onclick="exportXlsx()">Export Excel</button></p>
+<div class="tablewrap"><table><tr><th>Date</th><th>Film</th><th>★</th><th>Name</th><th>M/F</th><th>Age</th><th>District</th><th>Review</th><th></th></tr>${[...A].reverse().map(r=>`<tr><td>${dfmt(r.ts)}</td><td>${esc((mv(r.movieId)||{t:'?'}).t)}</td><td class="st">${r.stars}</td><td>${esc(r.name)}</td><td>${esc(r.gender)}</td><td>${esc(r.age)}</td><td>${esc(r.district)}</td><td>${esc(r.comment||r.quick)}</td><td><button class="ghost" onclick="delRev('${esc(r.id)}')">Delete</button></td></tr>`).join('')}</table></div>
+<h2>Add a film</h2><div class="panel" style="max-width:none;margin:0"><label>Title</label><input id="at"><div class="two"><div><label>Year</label><input id="ay" type="number"></div><div><label>Director</label><input id="ad"></div></div><label>Genres (comma separated: ${GEN.join(', ')})</label><input id="ag"><label>Synopsis</label><input id="ab"><div class="err" id="er"></div><button onclick="addMovie()">Add to programme</button></div>
+<h2>Films (${D.movies.length})</h2><div class="tablewrap"><table>${D.movies.map(m=>`<tr><td>${esc(m.t)} (${m.y})</td><td>${esc(m.g.join(', '))}</td><td><button class="ghost" onclick="delMovie(${m.id})">Remove</button></td></tr>`).join('')}</table></div>`}
+async function adminLogin(){const u=$('#au').value.trim(),p=$('#ap').value;adm={user:u,pass:p};
+ try{await call('adminData',adm)}catch(e){adm=null;return $('#er').textContent=/auth/i.test(e.message)?'Username or password is wrong.':e.message}
+ try{sessionStorage.setItem('fang_adm',JSON.stringify(adm))}catch(e){}admin()}
+async function act(action,body,msg){try{await call(action,{...adm,...body});toast(msg);await load(true);admin()}catch(e){toast(e.message)}}
+function delRev(id){act('delReview',{id},'Review deleted')}
+function delMovie(id){if(confirm('Remove this film and its reviews?'))act('delMovie',{id},'Film removed')}
+function addMovie(){const t=$('#at').value.trim(),y=+$('#ay').value,g=$('#ag').value.split(',').map(x=>GEN.find(k=>k.toLowerCase()===x.trim().toLowerCase())).filter(Boolean);
+ if(!t||!y||!g.length)return $('#er').textContent='Title, year and at least one valid genre are required.';
+ act('addMovie',{title:t,year:y,director:$('#ad').value.trim()||'Unknown',genres:g.join(', '),blurb:$('#ab').value.trim()||'No synopsis yet.'},'Film added')}
+const rows=()=>A.map(r=>({Date:r.ts,Film:(mv(r.movieId)||{}).t||'',Stars:r.stars,Quick:r.quick,Comment:r.comment,Name:r.name,Gender:r.gender,Age:r.age,District:r.district}));
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function exportCsv(){const r=rows(),k=Object.keys(r[0]||{Date:1});const c=v=>{v=String(v==null?'':v);if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'};
+ save(new Blob(['\ufeff'+[k.join(',')].concat(r.map(o=>k.map(x=>c(o[x])).join(','))).join('\n')],{type:'text/csv'}),'fang-reviews.csv')}
+function exportXlsx(){if(typeof XLSX==='undefined')return toast('Excel library did not load');const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows()),'Reviews');
+ save(new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]),'fang-reviews.xlsx')}
 addEventListener('hashchange',route);route();
 </script></body></html>
